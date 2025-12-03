@@ -191,8 +191,9 @@
         let isListening = false;
         let isBotSpeaking = false;
         let silenceTimer = null;
-        let vadThreshold = 0.01;
+        let vadThreshold = 0.005; // Seuil plus bas pour détecter plus facilement
         let silenceDuration = 1500;
+        let audioProcessCount = 0;
         let animationFrameId = null;
         
         const statusEl = document.getElementById('status');
@@ -229,32 +230,38 @@
 
         function connect() {
             const wsUrl = 'ws://localhost:8080/ws/realtime';
+            console.log('🔌 Tentative de connexion à:', wsUrl);
             infoEl.textContent = 'Connexion au backend...';
             
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
+                console.log('✅ WebSocket connecté');
                 updateStatus('connected', '✅ Connecté');
                 infoEl.textContent = 'Connecté ! Cliquez sur "Démarrer la conversation"';
                 toggleBtn.disabled = false;
             };
 
             ws.onmessage = async (event) => {
+                console.log('📨 Message reçu, type:', typeof event.data, 'size:', event.data.byteLength || event.data.length);
                 if (typeof event.data === 'string') {
                     const message = JSON.parse(event.data);
+                    console.log('📨 Message JSON:', message);
                     handleMessage(message);
                 } else {
+                    console.log('🔊 Audio reçu:', event.data.byteLength, 'bytes');
                     await playAudio(event.data);
                 }
             };
 
             ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                showError('Erreur de connexion WebSocket');
+                console.error('❌ WebSocket error:', error);
+                showError('Erreur de connexion WebSocket. Vérifiez que le serveur est démarré.');
                 updateStatus('idle', '❌ Erreur de connexion');
             };
 
-            ws.onclose = () => {
+            ws.onclose = (event) => {
+                console.log('🔌 WebSocket fermé, code:', event.code, 'reason:', event.reason);
                 updateStatus('idle', '⚠️ Déconnecté');
                 toggleBtn.disabled = true;
                 infoEl.textContent = 'Déconnecté. Reconnexion...';
@@ -290,13 +297,18 @@
         let isPlayingAudio = false;
         
         async function playAudio(audioData) {
-            if (!isConversationActive) return;
+            if (!isConversationActive) {
+                console.log('⚠️ Audio ignoré, conversation inactive');
+                return;
+            }
             
+            console.log('🔊 Audio ajouté à la queue:', audioData.byteLength, 'bytes');
             // Ajouter à la queue
             audioQueue.push(audioData);
             
             if (!isPlayingAudio) {
                 isPlayingAudio = true;
+                console.log('▶️ Démarrage de la lecture audio');
                 processAudioQueue();
             }
         }
@@ -351,10 +363,19 @@
 
         async function startConversation() {
             try {
+                console.log('🎤 Démarrage de la conversation...');
                 infoEl.textContent = 'Démarrage de la conversation...';
                 
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    console.error('❌ WebSocket non connecté');
+                    showError('WebSocket non connecté. Attendez la connexion.');
+                    return;
+                }
+                
+                console.log('📤 Envoi: start_conversation');
                 ws.send(JSON.stringify({ type: 'start_conversation' }));
                 
+                console.log('🎤 Demande d\'accès au micro...');
                 mediaStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         channelCount: 1,
@@ -388,9 +409,16 @@
                     }
                     const audioLevel = sum / inputData.length;
                     
+                    // Log périodique pour déboguer
+                    audioProcessCount++;
+                    if (audioProcessCount % 100 === 0) {
+                        console.log('🔊 Niveau audio:', audioLevel.toFixed(6), 'Seuil:', vadThreshold);
+                    }
+                    
                     // Détection de voix (VAD)
                     if (audioLevel > vadThreshold) {
                         if (!isListening) {
+                            console.log('🎤 Voix détectée ! Niveau:', audioLevel.toFixed(4), 'Seuil:', vadThreshold);
                             isListening = true;
                             updateStatus('listening', '🎤 Vous parlez...');
                             micIndicatorEl.className = 'mic-indicator active';
@@ -404,7 +432,15 @@
                             const s = Math.max(-1, Math.min(1, inputData[i]));
                             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                         }
-                        ws.send(pcm16.buffer);
+                        
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(pcm16.buffer);
+                            if (audioProcessCount % 50 === 0) {
+                                console.log('📤 Audio envoyé:', pcm16.length, 'samples');
+                            }
+                        } else {
+                            console.warn('⚠️ WebSocket non prêt pour envoyer audio');
+                        }
                         
                         silenceTimer = setTimeout(() => {
                             if (isListening && !isBotSpeaking) {
@@ -434,20 +470,30 @@
                 infoEl.textContent = 'Parlez naturellement, je détecte automatiquement votre voix';
                 transcriptEl.innerHTML = '<div class="status-text">Conversation démarrée. Parlez maintenant...</div>';
                 
+                console.log('✅ Conversation démarrée avec succès');
+                console.log('🎤 Micro activé, écoute en cours...');
+                console.log('💡 Parlez maintenant - le niveau audio sera affiché dans la console');
+                
             } catch (error) {
+                console.error('❌ Erreur lors du démarrage:', error);
                 showError(`Erreur: ${error.message}`);
-                console.error('Error starting conversation:', error);
             }
         }
 
         function endUserSpeech() {
             if (!isListening || isBotSpeaking) return;
             
+            console.log('🔚 Fin de la parole détectée, envoi de user_audio_end');
             isListening = false;
             updateStatus('speaking', '🤖 OCTI réfléchit et répond...');
             micIndicatorEl.className = 'mic-indicator';
             
-            ws.send(JSON.stringify({ type: 'user_audio_end' }));
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'user_audio_end' }));
+                console.log('📤 user_audio_end envoyé');
+            } else {
+                console.error('❌ WebSocket non prêt pour envoyer user_audio_end');
+            }
             
             if (silenceTimer) {
                 clearTimeout(silenceTimer);
