@@ -25,17 +25,17 @@ export function getEnvConfig(): EnvConfig {
   const nodeEnv = process.env.NODE_ENV || 'development';
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const openaiRealtimeModel = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime';
-  const octiSystemPrompt = process.env.OCTI_SYSTEM_PROMPT;
-  const octiPromptId = process.env.OCTI_PROMPT_ID; // Optionnel
-  const octiDefaultVoice = process.env.OCTI_DEFAULT_VOICE || 'verse';
+  const octiSystemPrompt = process.env.OKTI_SYSTEM_PROMPT;
+  const octiPromptId = process.env.OKTI_PROMPT_ID; // Optionnel
+  const octiDefaultVoice = process.env.OKTI_DEFAULT_VOICE || 'verse';
 
   if (!openaiApiKey) {
     throw new Error('OPENAI_API_KEY est requis dans les variables d\'environnement');
   }
 
-  // Soit OCTI_SYSTEM_PROMPT, soit OCTI_PROMPT_ID doit être défini
+  // Soit OKTI_SYSTEM_PROMPT, soit OKTI_PROMPT_ID doit être défini
   if (!octiSystemPrompt && !octiPromptId) {
-    throw new Error('OCTI_SYSTEM_PROMPT ou OCTI_PROMPT_ID est requis dans les variables d\'environnement');
+    throw new Error('OKTI_SYSTEM_PROMPT ou OKTI_PROMPT_ID est requis dans les variables d\'environnement');
   }
 
   return {

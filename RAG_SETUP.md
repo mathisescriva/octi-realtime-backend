@@ -1,4 +1,4 @@
-# 🚀 Setup RAG pour OCTI - Guide Simple
+# 🚀 Setup RAG pour OKTI - Guide Simple
 
 ## 📋 Prérequis
 
@@ -101,10 +101,10 @@ Le backend va maintenant :
 ## 🔍 Comment ça marche ?
 
 1. **Étudiant pose une question** : "Quels sont les prérequis pour International Business?"
-2. **OCTI détecte** qu'il a besoin d'informations
+2. **OKTI détecte** qu'il a besoin d'informations
 3. **Tool RAG appelé** : Recherche dans Pinecone
 4. **Contexte trouvé** : Extrait des brochures/guides
-5. **OCTI répond** : Avec les informations précises des documents
+5. **OKTI répond** : Avec les informations précises des documents
 
 ---
 
@@ -126,4 +126,5 @@ Le backend va maintenant :
 - **Avec cache** : < 1ms (requêtes fréquentes)
 - **Sans cache** : 50-100ms (recherche Pinecone + embedding)
 - **Acceptable** : Oui, la latence est négligeable pour une conversation vocale
+
 

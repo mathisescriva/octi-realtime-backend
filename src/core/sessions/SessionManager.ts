@@ -11,7 +11,7 @@ import { ragSearchTool } from '../tools/ragSearchTool';
  */
 export class SessionManager {
   /**
-   * Crée une nouvelle session Realtime pour l'agent OCTI
+   * Crée une nouvelle session Realtime pour l'agent OKTI
    */
   static async createOctiSession(agentConfig: AgentConfig): Promise<OpenAIRealtimeClient> {
     const envConfig = getEnvConfig();
@@ -59,10 +59,10 @@ export class SessionManager {
 
     try {
       await client.connect(sessionConfig);
-      logger.info('Session OCTI créée avec succès');
+      logger.info('Session OKTI créée avec succès');
       return client;
     } catch (error) {
-      logger.error({ error }, 'Erreur lors de la création de la session OCTI');
+      logger.error({ error }, 'Erreur lors de la création de la session OKTI');
       throw new SessionError('Impossible de créer la session Realtime', error as Error);
     }
   }

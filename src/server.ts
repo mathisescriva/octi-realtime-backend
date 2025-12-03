@@ -36,7 +36,7 @@ async function startServer() {
           env: config.nodeEnv,
           wsPath: '/ws/realtime',
         },
-        'Serveur OCTI Realtime démarré'
+        'Serveur OKTI Realtime démarré'
       );
     });
 
@@ -64,4 +64,5 @@ async function startServer() {
 
 // Démarrer le serveur
 startServer();
+
 

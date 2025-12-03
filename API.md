@@ -1,4 +1,4 @@
-# 🔌 API Endpoints - OCTI Backend
+# 🔌 API Endpoints - OKTI Backend
 
 Documentation des endpoints pour connecter votre frontend.
 
@@ -69,7 +69,7 @@ const ephemeralKey = session.client_secret.value;
 
 ### WS /ws/realtime
 
-Endpoint WebSocket pour conversation directe avec OCTI.
+Endpoint WebSocket pour conversation directe avec OKTI.
 
 **URL :**
 ```

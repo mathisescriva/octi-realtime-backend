@@ -1,10 +1,10 @@
-# OCTI Realtime Backend
+# OKTI Realtime Backend
 
-Backend Node.js/TypeScript pour l'agent vocal intelligent OCTI, utilisant l'API OpenAI Realtime (GA) pour les Journées Portes Ouvertes de l'ESCE.
+Backend Node.js/TypeScript pour l'agent vocal intelligent OKTI, utilisant l'API OpenAI Realtime (GA) pour les Journées Portes Ouvertes de l'ESCE.
 
 ## 📋 Description
 
-OCTI est un assistant vocal en temps réel conçu pour répondre aux questions des étudiants et prospects lors des Journées Portes Ouvertes de l'ESCE. Le système permet une interaction speech-to-speech fluide avec une latence minimale, grâce à l'API OpenAI Realtime.
+OKTI est un assistant vocal en temps réel conçu pour répondre aux questions des étudiants et prospects lors des Journées Portes Ouvertes de l'ESCE. Le système permet une interaction speech-to-speech fluide avec une latence minimale, grâce à l'API OpenAI Realtime.
 
 ### Fonctionnalités principales
 
@@ -90,14 +90,61 @@ NODE_ENV=production
 OPENAI_API_KEY=sk-xxx
 OPENAI_REALTIME_MODEL=gpt-realtime
 
-# Configuration agent OCTI
-OCTI_SYSTEM_PROMPT="Tu es OCTI..."
-OCTI_DEFAULT_VOICE=verse
-OCTI_PROMPT_ID=pmpt_xxx  # Optionnel : utiliser un prompt ID
+# Configuration agent OKTI
+OKTI_SYSTEM_PROMPT="Tu es OKTI..."
+OKTI_DEFAULT_VOICE=verse
+OKTI_PROMPT_ID=pmpt_xxx  # Optionnel : utiliser un prompt ID
 
 # RAG (Optionnel)
 PINECONE_API_KEY=xxx
 PINECONE_INDEX_NAME=esce-documents
+```
+
+## 🚀 Guide de démarrage rapide
+
+### 1. Démarrer le backend
+
+Dans le répertoire racine du projet :
+
+```bash
+npm run dev
+```
+
+Le serveur backend démarre sur `http://localhost:8080` avec rechargement automatique.
+
+**Vérification :** Ouvrez `http://localhost:8080/health` dans votre navigateur. Vous devriez voir :
+```json
+{
+  "status": "ok",
+  "timestamp": "...",
+  "service": "octi-realtime-backend"
+}
+```
+
+### 2. Démarrer le frontend de démo (optionnel)
+
+Pour tester OKTI avec l'interface de démo Next.js :
+
+```bash
+cd reference-agents
+npm install  # Si ce n'est pas déjà fait
+npm run dev
+```
+
+Le frontend démarre généralement sur `http://localhost:3000` ou `http://localhost:3001` (selon les ports disponibles).
+
+**Accès à la démo :**
+- Ouvrez `http://localhost:3000` (ou le port indiqué dans la console)
+- Sélectionnez le scénario **"octi"** dans le menu déroulant
+- Cliquez sur **"Connect"** pour démarrer la session
+- Autorisez l'accès au microphone si demandé
+- Parlez avec OKTI !
+
+### 3. Utilisation en production
+
+```bash
+npm run build
+npm start
 ```
 
 ## 🎯 Utilisation
@@ -195,7 +242,7 @@ Vérifie que le serveur est opérationnel.
 
 ### Personnalisation de l'agent
 
-La personnalité et le contexte d'OCTI sont définis dans :
+La personnalité et le contexte d'OKTI sont définis dans :
 - `src/core/agents/esceContext.ts` : Contexte complet sur l'ESCE
 - `reference-agents/src/app/agentConfigs/octiAgent.ts` : Configuration de l'agent (frontend WebRTC)
 
@@ -215,6 +262,14 @@ Le système gère automatiquement les erreurs de rate limit OpenAI :
 - Extraction du temps d'attente depuis le message d'erreur
 - Réinitialisation automatique de la session après le délai
 - Messages d'erreur clairs pour l'utilisateur
+
+### Reconnexion automatique
+
+Le système inclut une gestion robuste des déconnexions :
+- **Reconnexion automatique** : Jusqu'à 5 tentatives avec backoff exponentiel
+- **Surveillance continue** : Vérification de l'état de la connexion toutes les 5 secondes
+- **Détection proactive** : Reconnexion automatique en cas de perte de connexion
+- **Messages informatifs** : L'utilisateur est informé des tentatives de reconnexion
 
 ## 📚 Documentation
 
@@ -270,6 +325,14 @@ npm run ingest         # Ingestion des documents dans Pinecone
 - Vérifier que Pinecone est configuré (`PINECONE_API_KEY`)
 - Vérifier que l'index existe et contient des données (`npm run ingest`)
 - Consulter les logs pour les erreurs de recherche
+
+### Le chatbot s'arrête pendant la conversation
+
+Le système inclut une reconnexion automatique, mais si le problème persiste :
+- Vérifier les logs du backend pour identifier l'erreur
+- Vérifier que la connexion WebSocket n'est pas bloquée par un firewall
+- Vérifier que `OPENAI_API_KEY` est valide et n'a pas expiré
+- Le système tente automatiquement de se reconnecter jusqu'à 5 fois
 
 ## 📝 Licence
 

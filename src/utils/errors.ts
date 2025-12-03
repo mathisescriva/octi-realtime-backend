@@ -1,5 +1,5 @@
 /**
- * Erreurs personnalisées pour le backend OCTI
+ * Erreurs personnalisées pour le backend OKTI
  */
 
 export class RealtimeConnectionError extends Error {
@@ -22,4 +22,5 @@ export class InvalidMessageError extends Error {
     this.name = 'InvalidMessageError';
   }
 }
+
 

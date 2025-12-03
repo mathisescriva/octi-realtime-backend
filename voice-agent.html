@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCTI - Voice Agent</title>
+    <title>OKTI - Voice Agent</title>
     <style>
         * {
             margin: 0;
@@ -158,7 +158,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🎙️ OCTI</h1>
+        <h1>🎙️ OKTI</h1>
         <p class="subtitle">Assistant vocal intelligent - Conversation en temps réel</p>
         
         <div id="status" class="status idle">
@@ -223,7 +223,7 @@
             
             const entry = document.createElement('div');
             entry.className = speaker;
-            entry.textContent = speaker === 'user' ? `👤 Vous: ${text}` : `🤖 OCTI: ${text}`;
+            entry.textContent = speaker === 'user' ? `👤 Vous: ${text}` : `🤖 OKTI: ${text}`;
             transcriptEl.appendChild(entry);
             transcriptEl.scrollTop = transcriptEl.scrollHeight;
         }
@@ -339,7 +339,7 @@
             }
             
             isBotSpeaking = true;
-            updateStatus('speaking', '🔊 OCTI parle...');
+            updateStatus('speaking', '🔊 OKTI parle...');
             micIndicatorEl.className = 'mic-indicator';
             
             const audioData = audioQueue.shift();
@@ -546,7 +546,7 @@
             
             console.log('🔚 Fin de la parole détectée, envoi de user_audio_end');
             isListening = false;
-            updateStatus('speaking', '🤖 OCTI réfléchit et répond...');
+            updateStatus('speaking', '🤖 OKTI réfléchit et répond...');
             micIndicatorEl.className = 'mic-indicator';
             
             if (ws && ws.readyState === WebSocket.OPEN) {

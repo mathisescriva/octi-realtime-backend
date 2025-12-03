@@ -1,4 +1,4 @@
-# 🎯 Fonctionnalités à Ajouter pour OCTI (JPO ESCE)
+# 🎯 Fonctionnalités à Ajouter pour OKTI (JPO ESCE)
 
 ## 📊 Analyse de votre Use Case
 
@@ -193,7 +193,7 @@ export const jpoTools = [
 - Reprendre une conversation après déconnexion
 
 ### 10. **Handoffs Multi-Agents**
-- Agent général (OCTI)
+- Agent général (OKTI)
 - Agent admissions
 - Agent programmes
 - Agent international
@@ -224,4 +224,5 @@ export const jpoTools = [
 3. **Besoin de tracking des étudiants ?** → Variables + Logging
 4. **Besoin de modération stricte ?** → Guardrails
 5. **Plusieurs types de questions ?** → Multi-agents
+
 

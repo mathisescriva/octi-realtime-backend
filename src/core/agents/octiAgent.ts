@@ -3,7 +3,7 @@ import { AgentConfig, createAgentConfig } from './AgentConfig';
 import { ESCE_CONTEXT } from './esceContext';
 
 /**
- * Configuration de l'agent OCTI
+ * Configuration de l'agent OKTI
  */
 export function getOctiAgentConfig(): AgentConfig {
   const config = getEnvConfig();

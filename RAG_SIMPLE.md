@@ -1,4 +1,4 @@
-# 🚀 RAG Simple pour OCTI - Solution Déployable
+# 🚀 RAG Simple pour OKTI - Solution Déployable
 
 ## 🎯 Objectif
 Solution la plus simple possible, qui marche, et déployable sur Render.
@@ -99,4 +99,5 @@ PINECONE_INDEX_NAME=esce-documents
 3. ✅ Tool de recherche simple
 4. ✅ Intégration backend
 5. ✅ Déploiement Render
+
 

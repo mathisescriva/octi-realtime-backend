@@ -24,6 +24,11 @@ import { searchDocuments } from '../../core/tools/ragSearchTool';
  */
 export function realtimeHandler(ws: WebSocket): void {
   let realtimeClient: OpenAIRealtimeClient | null = null;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const RECONNECT_DELAY = 2000; // 2 secondes
+  let reconnectTimeout: NodeJS.Timeout | null = null;
+  let isReconnecting = false;
 
   logger.info('Nouvelle connexion WebSocket client');
 
@@ -212,6 +217,10 @@ export function realtimeHandler(ws: WebSocket): void {
               logger.info('🔄 Réinitialisation de la session après rate limit');
               await resetSession();
             }, waitTime * 1000);
+          } else if (errorCode === 'connection_closed' || errorCode === 'websocket_error') {
+            // Erreur de connexion, tenter une reconnexion
+            logger.warn('Connexion fermée, tentative de reconnexion...');
+            attemptReconnect();
           } else {
             sendError(`Erreur OpenAI: ${errorMessage}`);
           }
@@ -275,6 +284,47 @@ export function realtimeHandler(ws: WebSocket): void {
     await initializeSession();
   }
 
+  /**
+   * Tente une reconnexion automatique en cas de déconnexion
+   */
+  async function attemptReconnect() {
+    if (isReconnecting) {
+      logger.debug('Reconnexion déjà en cours, ignorée');
+      return;
+    }
+
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      logger.error({ attempts: reconnectAttempts }, 'Nombre maximum de tentatives de reconnexion atteint');
+      sendError('Impossible de se reconnecter. Veuillez rafraîchir la page.');
+      return;
+    }
+
+    isReconnecting = true;
+    reconnectAttempts++;
+    const delay = RECONNECT_DELAY * reconnectAttempts; // Backoff exponentiel
+    
+    logger.warn({ attempt: reconnectAttempts, delay }, 'Tentative de reconnexion...');
+    sendError(`Reconnexion en cours (tentative ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+
+    reconnectTimeout = setTimeout(async () => {
+      try {
+        await initializeSession();
+        reconnectAttempts = 0; // Reset sur succès
+        isReconnecting = false;
+        logger.info('✅ Reconnexion réussie');
+      } catch (error) {
+        logger.error({ error, attempt: reconnectAttempts }, 'Échec de la reconnexion');
+        isReconnecting = false;
+        // Réessayer
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          attemptReconnect();
+        } else {
+          sendError('Échec de la reconnexion. Veuillez rafraîchir la page.');
+        }
+      }
+    }, delay);
+  }
+
   // Initialiser la session dès la connexion
   initializeSession();
 
@@ -292,9 +342,12 @@ export function realtimeHandler(ws: WebSocket): void {
         if (!realtimeClient.connected) {
           logger.warn('Tentative d\'envoi d\'audio, session non connectée. État:', realtimeClient.ws?.readyState);
           // Réessayer de créer la session si elle est fermée
-          if (realtimeClient.ws?.readyState === WebSocket.CLOSED) {
-            logger.info('Session fermée, réinitialisation...');
-            await resetSession();
+          if (realtimeClient.ws?.readyState === WebSocket.CLOSED || realtimeClient.ws?.readyState === WebSocket.CLOSING) {
+            logger.info('Session fermée, tentative de reconnexion...');
+            await attemptReconnect();
+          } else if (!isReconnecting) {
+            // Si la connexion est en cours mais pas confirmée, attendre un peu
+            logger.debug('Session en cours d\'initialisation, attente...');
           }
           return;
         }
@@ -353,9 +406,21 @@ export function realtimeHandler(ws: WebSocket): void {
     }
   });
 
+  // Surveiller la connexion OpenAI pour détecter les fermetures
+  const checkConnectionInterval = setInterval(() => {
+    if (realtimeClient && !realtimeClient.connected && ws.readyState === WebSocket.OPEN) {
+      logger.warn('Connexion OpenAI perdue, tentative de reconnexion...');
+      attemptReconnect();
+    }
+  }, 5000); // Vérifier toutes les 5 secondes
+
   // Gérer la fermeture de la connexion
   ws.on('close', () => {
     logger.info('Connexion WebSocket client fermée');
+    clearInterval(checkConnectionInterval);
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+    }
     if (realtimeClient) {
       realtimeClient.close();
       realtimeClient = null;
@@ -365,6 +430,10 @@ export function realtimeHandler(ws: WebSocket): void {
   // Gérer les erreurs de connexion
   ws.on('error', (error) => {
     logger.error({ error }, 'Erreur WebSocket client');
+    clearInterval(checkConnectionInterval);
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+    }
     if (realtimeClient) {
       realtimeClient.close();
       realtimeClient = null;

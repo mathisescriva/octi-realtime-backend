@@ -1,4 +1,4 @@
-# 🎯 Fonctionnalités Suggérées pour OCTI (JPO ESCE)
+# 🎯 Fonctionnalités Suggérées pour OKTI (JPO ESCE)
 
 ## 📋 Analyse de votre Use Case
 
@@ -60,7 +60,7 @@ Permettre à l'agent d'appeler des fonctions :
 
 ### 7. **Handoffs Multi-Agents**
 Agents spécialisés selon le besoin :
-- Agent général (OCTI)
+- Agent général (OKTI)
 - Agent admissions
 - Agent programmes
 - Agent international

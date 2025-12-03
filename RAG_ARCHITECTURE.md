@@ -1,4 +1,4 @@
-# 🧠 Architecture RAG pour OCTI (Ingestion de Documents)
+# 🧠 Architecture RAG pour OKTI (Ingestion de Documents)
 
 ## 📋 Documents à Ingérer
 
@@ -431,4 +431,5 @@ Si vous voulez commencer simple sans Vector DB :
 ```
 
 **Recommandation :** Commencer avec Qdrant (gratuit, rapide, facile).
+
 

@@ -54,7 +54,7 @@ async function parseExcel(filePath: string): Promise<string[]> {
   const sheets = workbook.SheetNames;
   const texts: string[] = [];
 
-  for (const sheetName of sheets) {
+  for (const sheetName ofé sheets) {
     const sheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(sheet);
     

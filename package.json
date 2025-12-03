@@ -1,7 +1,7 @@
 {
   "name": "octi-realtime-backend",
   "version": "1.0.0",
-  "description": "Backend WebSocket pour agent IA vocal OCTI utilisant OpenAI Realtime API",
+  "description": "Backend WebSocket pour agent IA vocal OKTI utilisant OpenAI Realtime API",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
