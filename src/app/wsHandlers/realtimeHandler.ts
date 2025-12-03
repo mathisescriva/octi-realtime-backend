@@ -11,8 +11,8 @@ import {
   createErrorMessage,
 } from '../../utils/wsMessages';
 import {
-  ResponseAudioDeltaEvent,
-  ResponseAudioTranscriptDeltaEvent,
+  ResponseOutputAudioDeltaEvent,
+  ResponseOutputAudioTranscriptDeltaEvent,
   ErrorEvent,
   InputAudioBufferCommitMessage,
 } from '../../core/realtime/types';
@@ -54,23 +54,21 @@ export function realtimeHandler(ws: WebSocket): void {
   function handleOpenAIEvent(event: any) {
     try {
       switch (event.type) {
-        case 'response.audio_transcript.delta': {
-          const deltaEvent = event as ResponseAudioTranscriptDeltaEvent;
-          // Envoyer la transcription delta au frontend (pour affichage)
+        case 'response.output_audio_transcript.delta': {
+          const deltaEvent = event as ResponseOutputAudioTranscriptDeltaEvent;
           ws.send(JSON.stringify(createTranscriptDeltaMessage(deltaEvent.delta)));
           break;
         }
 
-        case 'response.audio.delta': {
-          const audioEvent = event as ResponseAudioDeltaEvent;
+        case 'response.output_audio.delta': {
+          const audioEvent = event as ResponseOutputAudioDeltaEvent;
           // Décoder le base64 et envoyer l'audio PCM16 au frontend
           const audioBuffer = Buffer.from(audioEvent.delta, 'base64');
           ws.send(audioBuffer);
           break;
         }
 
-        case 'response.audio.done': {
-          // Signaler la fin de l'audio au frontend
+        case 'response.output_audio.done': {
           ws.send(JSON.stringify(createBotAudioEndMessage()));
           break;
         }
@@ -83,7 +81,6 @@ export function realtimeHandler(ws: WebSocket): void {
         }
 
         default:
-          // Ignorer les autres événements (session.created, etc.)
           break;
       }
     } catch (error) {
@@ -147,13 +144,11 @@ export function realtimeHandler(ws: WebSocket): void {
         switch (message.type) {
           case 'start_conversation':
             logger.info('Démarrage de conversation demandé');
-            // La session est déjà prête, rien à faire
             break;
 
           case 'user_audio_end':
             logger.info('Fin de l\'audio utilisateur détectée');
             if (realtimeClient && realtimeClient.connected) {
-              // Signaler à OpenAI que l'audio utilisateur est terminé
               const commitMessage: InputAudioBufferCommitMessage = {
                 type: 'input_audio_buffer.commit',
               };
@@ -165,9 +160,6 @@ export function realtimeHandler(ws: WebSocket): void {
             logger.info('Reset de session demandé');
             await resetSession();
             break;
-
-          default:
-            logger.warn({ message }, 'Type de message non géré');
         }
       }
     } catch (error) {
@@ -194,4 +186,3 @@ export function realtimeHandler(ws: WebSocket): void {
     }
   });
 }
-

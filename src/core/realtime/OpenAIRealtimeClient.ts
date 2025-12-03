@@ -9,8 +9,7 @@ import {
 } from './types';
 
 /**
- * Client WebSocket pour l'API OpenAI Realtime
- * Encapsule la connexion et la communication avec OpenAI
+ * Client WebSocket pour l'API OpenAI Realtime (GA)
  */
 export class OpenAIRealtimeClient {
   private ws: WebSocket | null = null;
@@ -26,7 +25,6 @@ export class OpenAIRealtimeClient {
 
   /**
    * Établit la connexion WebSocket vers OpenAI Realtime API
-   * Envoie automatiquement la configuration de session
    */
   async connect(sessionConfig: RealtimeSessionConfig): Promise<void> {
     if (this.isConnected) {
@@ -41,7 +39,6 @@ export class OpenAIRealtimeClient {
         this.ws = new WebSocket(url, {
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
-            'OpenAI-Beta': 'realtime=v1',
           },
         });
 
@@ -65,9 +62,8 @@ export class OpenAIRealtimeClient {
               const event: RealtimeEvent = JSON.parse(data);
               this.handleMessage(event);
             } else {
-              // Messages binaires depuis OpenAI sont rares (peut être des pings WebSocket)
-              // L'audio est généralement envoyé dans les événements JSON avec delta en base64
-              logger.debug({ size: Buffer.isBuffer(data) ? data.length : 'unknown' }, 'Message binaire reçu depuis OpenAI (probable ping)');
+              // Messages binaires (pings WebSocket)
+              logger.debug({ size: Buffer.isBuffer(data) ? data.length : 'unknown' }, 'Message binaire reçu depuis OpenAI');
             }
           } catch (error) {
             logger.error({ error }, 'Erreur lors du parsing d\'un message OpenAI');
@@ -149,7 +145,6 @@ export class OpenAIRealtimeClient {
   private handleMessage(event: RealtimeEvent): void {
     logger.debug({ type: event.type }, 'Événement reçu depuis OpenAI');
 
-    // Distribuer l'événement à tous les handlers enregistrés
     for (const handler of this.messageHandlers) {
       try {
         handler(event);
@@ -159,4 +154,3 @@ export class OpenAIRealtimeClient {
     }
   }
 }
-

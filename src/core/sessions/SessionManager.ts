@@ -7,25 +7,26 @@ import { RealtimeSessionConfig } from '../realtime/types';
 
 /**
  * Gestionnaire de sessions Realtime
- * Crée et gère les connexions OpenAI Realtime pour différents agents
  */
 export class SessionManager {
   /**
    * Crée une nouvelle session Realtime pour l'agent OCTI
-   * @returns Un client Realtime connecté et configuré
    */
   static async createOctiSession(agentConfig: AgentConfig): Promise<OpenAIRealtimeClient> {
     const envConfig = getEnvConfig();
 
     const client = new OpenAIRealtimeClient(envConfig.openaiApiKey, envConfig.openaiRealtimeModel);
 
-    // Convertir la config agent en config session Realtime
+    // Configuration de session selon la doc GA
     const sessionConfig: RealtimeSessionConfig = {
+      type: 'realtime',
       instructions: agentConfig.systemPrompt,
-      voice: agentConfig.voice,
-      input_audio_format: agentConfig.inputAudioFormat,
-      output_audio_format: agentConfig.outputAudioFormat,
-      modalities: agentConfig.modalities,
+      model: envConfig.openaiRealtimeModel,
+      audio: {
+        output: {
+          voice: agentConfig.voice,
+        },
+      },
     };
 
     try {
@@ -37,32 +38,4 @@ export class SessionManager {
       throw new SessionError('Impossible de créer la session Realtime', error as Error);
     }
   }
-
-  /**
-   * Méthode générique pour créer une session pour n'importe quel agent
-   * Permet d'étendre facilement pour d'autres agents (MILO, Gilbert...)
-   */
-  static async createSession(agentConfig: AgentConfig): Promise<OpenAIRealtimeClient> {
-    const envConfig = getEnvConfig();
-
-    const client = new OpenAIRealtimeClient(envConfig.openaiApiKey, envConfig.openaiRealtimeModel);
-
-    const sessionConfig: RealtimeSessionConfig = {
-      instructions: agentConfig.systemPrompt,
-      voice: agentConfig.voice,
-      input_audio_format: agentConfig.inputAudioFormat,
-      output_audio_format: agentConfig.outputAudioFormat,
-      modalities: agentConfig.modalities,
-    };
-
-    try {
-      await client.connect(sessionConfig);
-      logger.info('Session créée avec succès');
-      return client;
-    } catch (error) {
-      logger.error({ error }, 'Erreur lors de la création de la session');
-      throw new SessionError('Impossible de créer la session Realtime', error as Error);
-    }
-  }
 }
-

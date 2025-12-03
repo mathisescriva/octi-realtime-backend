@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCTI - Conversation Vocale Temps Réel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .status.idle {
+            background: #e9ecef;
+            color: #495057;
+        }
+        .status.listening {
+            background: #d4edda;
+            color: #155724;
+            animation: pulse 1.5s infinite;
+        }
+        .status.speaking {
+            background: #fff3cd;
+            color: #856404;
+            animation: pulse 1.5s infinite;
+        }
+        .status.connected {
+            background: #cce5ff;
+            color: #004085;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .button {
+            padding: 20px 40px;
+            margin: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            min-width: 200px;
+        }
+        .button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        .button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .button.active {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+        }
+        .button.active:hover {
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.6);
+        }
+        .transcript {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 100px;
+            text-align: left;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        .transcript .user {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .transcript .bot {
+            color: #764ba2;
+            margin-bottom: 10px;
+        }
+        .transcript .status-text {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+        .mic-indicator {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 20px auto;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            transition: all 0.3s;
+        }
+        .mic-indicator.active {
+            background: #dc3545;
+            animation: pulse 1s infinite;
+        }
+        .mic-indicator.listening {
+            background: #28a745;
+        }
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e7f3ff;
+            border-radius: 10px;
+            color: #004085;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ OCTI</h1>
+        <p class="subtitle">Assistant vocal intelligent - Conversation en temps réel</p>
+        
+        <div id="status" class="status idle">
+            ⚠️ Déconnecté
+        </div>
+        
+        <div class="mic-indicator" id="micIndicator">🎤</div>
+        
+        <button id="toggleBtn" class="button" onclick="toggleConversation()" disabled>
+            Démarrer la conversation
+        </button>
+        
+        <div class="transcript" id="transcript">
+            <div class="status-text">Connectez-vous pour commencer...</div>
+        </div>
+        
+        <div class="info" id="info">
+            Cliquez sur "Se connecter" pour démarrer
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let audioContext = null;
+        let mediaStream = null;
+        let processor = null;
+        let isConversationActive = false;
+        let isListening = false;
+        let isBotSpeaking = false;
+        let silenceTimer = null;
+        let audioLevel = 0;
+        let vadThreshold = 0.01; // Seuil de détection de voix
+        let silenceDuration = 1500; // ms de silence avant envoi
+        
+        const statusEl = document.getElementById('status');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const transcriptEl = document.getElementById('transcript');
+        const micIndicatorEl = document.getElementById('micIndicator');
+        const infoEl = document.getElementById('info');
+
+        // Connexion automatique au chargement
+        window.addEventListener('load', () => {
+            connect();
+        });
+
+        function connect() {
+            const wsUrl = 'ws://localhost:8080/ws/realtime';
+            infoEl.textContent = 'Connexion au backend...';
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                updateStatus('connected', '✅ Connecté');
+                infoEl.textContent = 'Connecté ! Cliquez sur "Démarrer la conversation"';
+                toggleBtn.disabled = false;
+            };
+
+            ws.onmessage = async (event) => {
+                if (typeof event.data === 'string') {
+                    const message = JSON.parse(event.data);
+                    handleMessage(message);
+                } else {
+                    // Audio binaire reçu
+                    await playAudio(event.data);
+                }
+            };
+
+            ws.onerror = (error) => {
+                updateStatus('idle', '❌ Erreur de connexion');
+                infoEl.textContent = 'Erreur de connexion. Vérifiez que le serveur est démarré.';
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onclose = () => {
+                updateStatus('idle', '⚠️ Déconnecté');
+                toggleBtn.disabled = true;
+                infoEl.textContent = 'Déconnecté. Reconnexion...';
+                setTimeout(connect, 2000);
+            };
+        }
+
+        function handleMessage(message) {
+            switch (message.type) {
+                case 'ready':
+                    if (!isConversationActive) {
+                        infoEl.textContent = 'Prêt ! Cliquez sur "Démarrer la conversation"';
+                    }
+                    break;
+                case 'transcript_delta':
+                    updateTranscript('bot', message.text, true);
+                    break;
+                case 'bot_audio_end':
+                    isBotSpeaking = false;
+                    if (isConversationActive) {
+                        updateStatus('listening', '🎤 Écoute... Parlez maintenant');
+                        micIndicatorEl.className = 'mic-indicator listening';
+                    }
+                    break;
+                case 'error':
+                    infoEl.textContent = `Erreur: ${message.message}`;
+                    console.error('Error:', message.message);
+                    break;
+            }
+        }
+
+        async function toggleConversation() {
+            if (!isConversationActive) {
+                await startConversation();
+            } else {
+                stopConversation();
+            }
+        }
+
+        async function startConversation() {
+            try {
+                infoEl.textContent = 'Démarrage de la conversation...';
+                
+                // Envoyer start_conversation
+                ws.send(JSON.stringify({ type: 'start_conversation' }));
+                
+                // Obtenir l'accès au micro
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        sampleRate: 24000,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                // Créer AudioContext
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 24000
+                });
+
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+                processor.onaudioprocess = (e) => {
+                    if (!isConversationActive || isBotSpeaking) return;
+                    
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    
+                    // Calculer le niveau audio pour VAD
+                    let sum = 0;
+                    for (let i = 0; i < inputData.length; i++) {
+                        sum += Math.abs(inputData[i]);
+                    }
+                    audioLevel = sum / inputData.length;
+                    
+                    // Détection de voix (VAD)
+                    if (audioLevel > vadThreshold) {
+                        if (!isListening) {
+                            isListening = true;
+                            updateStatus('listening', '🎤 Vous parlez...');
+                            micIndicatorEl.className = 'mic-indicator active';
+                        }
+                        
+                        // Réinitialiser le timer de silence
+                        if (silenceTimer) clearTimeout(silenceTimer);
+                        
+                        // Convertir en PCM16 et envoyer
+                        const pcm16 = new Int16Array(inputData.length);
+                        for (let i = 0; i < inputData.length; i++) {
+                            const s = Math.max(-1, Math.min(1, inputData[i]));
+                            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        }
+                        ws.send(pcm16.buffer);
+                        
+                        // Timer pour détecter la fin de parole
+                        silenceTimer = setTimeout(() => {
+                            if (isListening && !isBotSpeaking) {
+                                endUserSpeech();
+                            }
+                        }, silenceDuration);
+                    } else {
+                        // Silence détecté
+                        if (isListening && !isBotSpeaking) {
+                            if (!silenceTimer) {
+                                silenceTimer = setTimeout(() => {
+                                    endUserSpeech();
+                                }, silenceDuration);
+                            }
+                        }
+                    }
+                };
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+
+                isConversationActive = true;
+                toggleBtn.textContent = 'Arrêter la conversation';
+                toggleBtn.classList.add('active');
+                updateStatus('listening', '🎤 Écoute... Parlez maintenant');
+                micIndicatorEl.className = 'mic-indicator listening';
+                infoEl.textContent = 'Parlez naturellement, je détecte automatiquement votre voix';
+                transcriptEl.innerHTML = '<div class="status-text">Conversation démarrée. Parlez maintenant...</div>';
+                
+            } catch (error) {
+                infoEl.textContent = `Erreur: ${error.message}`;
+                console.error('Error starting conversation:', error);
+            }
+        }
+
+        function endUserSpeech() {
+            if (!isListening || isBotSpeaking) return;
+            
+            isListening = false;
+            updateStatus('speaking', '🤖 OCTI réfléchit et répond...');
+            micIndicatorEl.className = 'mic-indicator';
+            
+            // Envoyer user_audio_end
+            ws.send(JSON.stringify({ type: 'user_audio_end' }));
+            
+            if (silenceTimer) {
+                clearTimeout(silenceTimer);
+                silenceTimer = null;
+            }
+        }
+
+        async function playAudio(audioData) {
+            if (!isConversationActive) return;
+            
+            isBotSpeaking = true;
+            updateStatus('speaking', '🔊 OCTI parle...');
+            micIndicatorEl.className = 'mic-indicator';
+            
+            // Convertir PCM16 en Float32
+            const pcm16 = new Int16Array(audioData);
+            const float32 = new Float32Array(pcm16.length);
+            for (let i = 0; i < pcm16.length; i++) {
+                float32[i] = pcm16[i] / 32768.0;
+            }
+            
+            // Créer un AudioContext pour jouer
+            const playContext = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: 24000
+            });
+            
+            const audioBuffer = playContext.createBuffer(1, float32.length, 24000);
+            audioBuffer.getChannelData(0).set(float32);
+            
+            const source = playContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(playContext.destination);
+            source.onended = () => {
+                playContext.close();
+            };
+            source.start();
+        }
+
+        function stopConversation() {
+            isConversationActive = false;
+            isListening = false;
+            isBotSpeaking = false;
+            
+            if (silenceTimer) {
+                clearTimeout(silenceTimer);
+                silenceTimer = null;
+            }
+            
+            if (processor) {
+                processor.disconnect();
+                processor = null;
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            
+            toggleBtn.textContent = 'Démarrer la conversation';
+            toggleBtn.classList.remove('active');
+            updateStatus('connected', '✅ Connecté (conversation arrêtée)');
+            micIndicatorEl.className = 'mic-indicator';
+            infoEl.textContent = 'Conversation arrêtée. Cliquez pour redémarrer.';
+        }
+
+        function updateStatus(type, text) {
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = text;
+        }
+
+        function updateTranscript(speaker, text, append = false) {
+            if (!append) {
+                transcriptEl.innerHTML = '';
+            }
+            
+            const entry = document.createElement('div');
+            entry.className = speaker;
+            entry.textContent = speaker === 'user' ? `👤 Vous: ${text}` : `🤖 OCTI: ${text}`;
+            transcriptEl.appendChild(entry);
+            transcriptEl.scrollTop = transcriptEl.scrollHeight;
+        }
+    </script>
+</body>
+</html>

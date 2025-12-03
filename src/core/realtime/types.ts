@@ -1,6 +1,5 @@
 /**
- * Types pour l'API OpenAI Realtime
- * Basés sur la documentation officielle de l'API Realtime
+ * Types pour l'API OpenAI Realtime (GA)
  */
 
 /**
@@ -12,13 +11,12 @@ export type RealtimeEventType =
   | 'input_audio_buffer.speech_started'
   | 'input_audio_buffer.speech_stopped'
   | 'input_audio_buffer.committed'
-  | 'conversation.item.created'
-  | 'conversation.item.input_audio_transcription.completed'
-  | 'conversation.item.output_audio_transcription.completed'
-  | 'response.audio_transcript.delta'
-  | 'response.audio_transcript.done'
-  | 'response.audio.delta'
-  | 'response.audio.done'
+  | 'conversation.item.added'
+  | 'conversation.item.done'
+  | 'response.output_audio_transcript.delta'
+  | 'response.output_audio_transcript.done'
+  | 'response.output_audio.delta'
+  | 'response.output_audio.done'
   | 'response.done'
   | 'error';
 
@@ -33,24 +31,24 @@ export interface RealtimeEvent {
 /**
  * Événement de transcription delta (texte de la réponse)
  */
-export interface ResponseAudioTranscriptDeltaEvent extends RealtimeEvent {
-  type: 'response.audio_transcript.delta';
+export interface ResponseOutputAudioTranscriptDeltaEvent extends RealtimeEvent {
+  type: 'response.output_audio_transcript.delta';
   delta: string;
 }
 
 /**
- * Événement de chunk audio delta (audio PCM16)
+ * Événement de chunk audio delta (audio PCM16 en base64)
  */
-export interface ResponseAudioDeltaEvent extends RealtimeEvent {
-  type: 'response.audio.delta';
+export interface ResponseOutputAudioDeltaEvent extends RealtimeEvent {
+  type: 'response.output_audio.delta';
   delta: string; // Base64 encoded audio
 }
 
 /**
  * Événement de fin d'audio
  */
-export interface ResponseAudioDoneEvent extends RealtimeEvent {
-  type: 'response.audio.done';
+export interface ResponseOutputAudioDoneEvent extends RealtimeEvent {
+  type: 'response.output_audio.done';
 }
 
 /**
@@ -66,14 +64,17 @@ export interface ErrorEvent extends RealtimeEvent {
 }
 
 /**
- * Configuration de session pour OpenAI Realtime
+ * Configuration de session pour OpenAI Realtime (GA)
  */
 export interface RealtimeSessionConfig {
+  type: 'realtime';
   instructions: string;
-  voice: string;
-  input_audio_format: string;
-  output_audio_format: string;
-  modalities: string[];
+  model?: string;
+  audio?: {
+    output?: {
+      voice?: string;
+    };
+  };
 }
 
 /**
@@ -90,4 +91,3 @@ export interface SessionUpdateMessage {
 export interface InputAudioBufferCommitMessage {
   type: 'input_audio_buffer.commit';
 }
-
