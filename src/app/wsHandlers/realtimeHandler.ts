@@ -12,7 +12,6 @@ import {
 } from '../../utils/wsMessages';
 import {
   ResponseAudioDeltaEvent,
-  ResponseAudioDoneEvent,
   ResponseAudioTranscriptDeltaEvent,
   ErrorEvent,
   InputAudioBufferCommitMessage,
@@ -24,7 +23,6 @@ import {
  */
 export function realtimeHandler(ws: WebSocket): void {
   let realtimeClient: OpenAIRealtimeClient | null = null;
-  let isSessionReady = false;
 
   logger.info('Nouvelle connexion WebSocket client');
 
@@ -35,7 +33,6 @@ export function realtimeHandler(ws: WebSocket): void {
     try {
       const agentConfig = getOctiAgentConfig();
       realtimeClient = await SessionManager.createOctiSession(agentConfig);
-      isSessionReady = true;
 
       // Configurer les handlers pour les événements OpenAI
       realtimeClient.onMessage((event) => {
@@ -116,7 +113,6 @@ export function realtimeHandler(ws: WebSocket): void {
       realtimeClient = null;
     }
 
-    isSessionReady = false;
     await initializeSession();
   }
 

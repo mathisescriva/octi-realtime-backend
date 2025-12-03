@@ -1,6 +1,5 @@
 import WebSocket from 'ws';
 import { logger } from '../../config/logger';
-import { getEnvConfig } from '../../config/env';
 import { RealtimeConnectionError } from '../../utils/errors';
 import {
   RealtimeEvent,

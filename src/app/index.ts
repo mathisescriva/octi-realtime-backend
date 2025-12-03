@@ -15,7 +15,7 @@ export function createApp(): Express {
   app.use('/', healthRoute);
 
   // Log des requêtes
-  app.use((req, res, next) => {
+  app.use((req, _res, next) => {
     logger.debug({ method: req.method, path: req.path }, 'Requête HTTP');
     next();
   });
