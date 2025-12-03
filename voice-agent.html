@@ -191,7 +191,7 @@
         let isListening = false;
         let isBotSpeaking = false;
         let silenceTimer = null;
-        let vadThreshold = 0.005; // Seuil plus bas pour détecter plus facilement
+        let vadThreshold = 0.03; // Seuil plus élevé pour éviter les faux positifs (bruit de fond)
         let silenceDuration = 1500;
         let audioProcessCount = 0;
         let animationFrameId = null;
@@ -478,10 +478,18 @@
                             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                         }
                         
+                        // Vérifier que le buffer est valide (au moins 100 samples = 200 bytes)
+                        if (pcm16.length < 100) {
+                            if (audioProcessCount % 100 === 0) {
+                                console.warn('⚠️ Buffer audio trop petit:', pcm16.length, 'samples, ignoré');
+                            }
+                            return;
+                        }
+                        
                         if (ws && ws.readyState === WebSocket.OPEN) {
                             ws.send(pcm16.buffer);
                             if (audioProcessCount % 100 === 0) {
-                                console.log('📤 Audio envoyé:', pcm16.length, 'samples, niveau:', audioLevel.toFixed(4));
+                                console.log('📤 Audio envoyé:', pcm16.length, 'samples (', pcm16.buffer.byteLength, 'bytes), niveau:', audioLevel.toFixed(4));
                             }
                         } else {
                             console.warn('⚠️ WebSocket non prêt pour envoyer audio, état:', ws ? ws.readyState : 'null');

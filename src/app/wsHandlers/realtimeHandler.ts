@@ -14,7 +14,6 @@ import {
   ResponseOutputAudioDeltaEvent,
   ResponseOutputAudioTranscriptDeltaEvent,
   ErrorEvent,
-  InputAudioBufferCommitMessage,
 } from '../../core/realtime/types';
 
 /**
@@ -53,44 +52,65 @@ export function realtimeHandler(ws: WebSocket): void {
    */
   function handleOpenAIEvent(event: any) {
     try {
-      logger.debug({ type: event.type }, 'Événement OpenAI reçu');
+      // Logger TOUS les événements pour déboguer
+      logger.info({ type: event.type, event: JSON.stringify(event).substring(0, 500) }, 'Événement OpenAI reçu');
       
       switch (event.type) {
+        case 'session.created':
+        case 'session.updated':
+          logger.info('✅ Session confirmée par OpenAI');
+          break;
+          
+        case 'input_audio_buffer.speech_started':
+          logger.info('🎤 OpenAI a détecté le début de la parole');
+          break;
+          
+        case 'input_audio_buffer.speech_stopped':
+          logger.info('🔇 OpenAI a détecté la fin de la parole');
+          break;
+          
+        case 'input_audio_buffer.committed':
+          logger.info('✅ OpenAI a commité l\'audio');
+          break;
+          
         case 'response.output_audio_transcript.delta': {
           const deltaEvent = event as ResponseOutputAudioTranscriptDeltaEvent;
-          logger.debug({ delta: deltaEvent.delta.substring(0, 50) }, 'Transcription delta reçue');
+          logger.info({ delta: deltaEvent.delta.substring(0, 50) }, '📝 Transcription delta reçue');
           ws.send(JSON.stringify(createTranscriptDeltaMessage(deltaEvent.delta)));
           break;
         }
 
         case 'response.output_audio.delta': {
           const audioEvent = event as ResponseOutputAudioDeltaEvent;
-          logger.info({ deltaLength: audioEvent.delta.length }, 'Audio delta reçu depuis OpenAI');
+          logger.info({ deltaLength: audioEvent.delta.length }, '🔊 Audio delta reçu depuis OpenAI');
           // Décoder le base64 et envoyer l'audio PCM16 au frontend
           const audioBuffer = Buffer.from(audioEvent.delta, 'base64');
-          logger.info({ bufferSize: audioBuffer.length }, 'Audio décodé et envoyé au frontend');
+          logger.info({ bufferSize: audioBuffer.length }, '📤 Audio décodé et envoyé au frontend');
           ws.send(audioBuffer);
           break;
         }
 
         case 'response.output_audio.done': {
-          logger.info('Fin de l\'audio de réponse OpenAI');
+          logger.info('✅ Fin de l\'audio de réponse OpenAI');
           ws.send(JSON.stringify(createBotAudioEndMessage()));
+          break;
+        }
+
+        case 'response.done': {
+          logger.info('✅ Réponse complète terminée');
           break;
         }
 
         case 'error': {
           const errorEvent = event as ErrorEvent;
-          logger.error({ error: errorEvent.error }, 'Erreur depuis OpenAI Realtime');
+          logger.error({ error: errorEvent.error, fullEvent: JSON.stringify(event) }, '❌ Erreur depuis OpenAI Realtime');
           sendError(`Erreur OpenAI: ${errorEvent.error.message}`);
           break;
         }
 
         default:
-          // Logger les autres événements pour déboguer
-          if (event.type.includes('response') || event.type.includes('audio')) {
-            logger.debug({ type: event.type, event: JSON.stringify(event).substring(0, 200) }, 'Événement OpenAI non géré');
-          }
+          // Logger tous les autres événements
+          logger.debug({ type: event.type, event: JSON.stringify(event).substring(0, 200) }, 'Événement OpenAI');
           break;
       }
     } catch (error) {
@@ -129,7 +149,8 @@ export function realtimeHandler(ws: WebSocket): void {
   // Gérer les messages du frontend
   ws.on('message', async (data: WebSocket.Data) => {
     try {
-      // Message binaire = chunk audio PCM16
+      // Message binaire = chunk audio PCM16 depuis le frontend
+      // On doit le convertir en Base64 et l'envoyer via input_audio_buffer.append
       if (Buffer.isBuffer(data) || data instanceof ArrayBuffer) {
         if (!realtimeClient) {
           logger.warn('Tentative d\'envoi d\'audio sans client Realtime');
@@ -146,9 +167,19 @@ export function realtimeHandler(ws: WebSocket): void {
           return;
         }
 
+        // Convertir le buffer PCM16 en Base64 selon la doc
         const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
-        realtimeClient.sendBinary(buffer);
-        logger.debug({ size: buffer.length }, 'Chunk audio envoyé à OpenAI');
+        
+        // Vérifier que le buffer est valide (au moins 100 bytes)
+        if (buffer.length < 100) {
+          logger.debug({ size: buffer.length }, 'Buffer audio trop petit, ignoré');
+          return;
+        }
+        
+        // Encoder en Base64 et envoyer via input_audio_buffer.append
+        const audioBase64 = buffer.toString('base64');
+        realtimeClient.sendAudioChunk(audioBase64);
+        logger.debug({ size: buffer.length, base64Length: audioBase64.length }, 'Chunk audio envoyé à OpenAI via input_audio_buffer.append');
         return;
       }
 
@@ -168,13 +199,14 @@ export function realtimeHandler(ws: WebSocket): void {
             break;
 
           case 'user_audio_end':
-            logger.info('Fin de l\'audio utilisateur détectée');
-            if (realtimeClient && realtimeClient.connected) {
-              const commitMessage: InputAudioBufferCommitMessage = {
-                type: 'input_audio_buffer.commit',
-              };
-              realtimeClient.sendEvent(commitMessage);
-            }
+            // Avec VAD activé (semantic_vad), on n'a PAS besoin d'envoyer input_audio_buffer.commit
+            // Le serveur détecte automatiquement la fin de parole et génère une réponse
+            // On garde ce code pour le cas où VAD serait désactivé
+            logger.info('Fin de l\'audio utilisateur détectée (VAD gère automatiquement le commit)');
+            // Note: Avec VAD activé, le commit est automatique, donc on ne fait rien ici
+            // Si VAD était désactivé, on enverrait:
+            // const commitMessage: InputAudioBufferCommitMessage = { type: 'input_audio_buffer.commit' };
+            // realtimeClient.sendEvent(commitMessage);
             break;
 
           case 'reset_session':

@@ -17,17 +17,42 @@ export class SessionManager {
 
     const client = new OpenAIRealtimeClient(envConfig.openaiApiKey, envConfig.openaiRealtimeModel);
 
-    // Configuration de session selon la doc GA
+    // Configuration de session selon la doc OpenAI Realtime API (structure exacte)
     const sessionConfig: RealtimeSessionConfig = {
       type: 'realtime',
-      instructions: agentConfig.systemPrompt,
       model: envConfig.openaiRealtimeModel,
+      output_modalities: ['audio'], // Lock output to audio
       audio: {
+        input: {
+          format: {
+            type: 'audio/pcm',
+            rate: 24000,
+          },
+          turn_detection: {
+            type: 'semantic_vad', // VAD activé par défaut
+          },
+        },
         output: {
-          voice: agentConfig.voice,
+          format: {
+            type: 'audio/pcm',
+          },
+          voice: agentConfig.voice || 'alloy',
         },
       },
+      // Utiliser prompt ID si disponible, sinon instructions
+      ...(envConfig.octiPromptId
+        ? {
+            prompt: {
+              id: envConfig.octiPromptId,
+              version: '1',
+            },
+          }
+        : {
+            instructions: agentConfig.systemPrompt,
+          }),
     };
+    
+    logger.debug({ sessionConfig }, 'Configuration de session créée');
 
     try {
       await client.connect(sessionConfig);

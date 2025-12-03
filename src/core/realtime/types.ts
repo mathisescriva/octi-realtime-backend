@@ -65,16 +65,35 @@ export interface ErrorEvent extends RealtimeEvent {
 
 /**
  * Configuration de session pour OpenAI Realtime (GA)
+ * Structure exacte selon la documentation officielle
  */
 export interface RealtimeSessionConfig {
-  type: 'realtime';
-  instructions: string;
+  type: 'realtime'; // Requis
   model?: string;
+  output_modalities?: string[]; // ["audio"] par défaut
   audio?: {
+    input?: {
+      format?: {
+        type: string; // "audio/pcm"
+        rate: number; // 24000
+      };
+      turn_detection?: {
+        type: string; // "semantic_vad"
+      } | null;
+    };
     output?: {
-      voice?: string;
+      format?: {
+        type: string; // "audio/pcm"
+      };
+      voice?: string; // "alloy", "ash", etc.
     };
   };
+  prompt?: {
+    id: string;
+    version?: string;
+    variables?: Record<string, any>;
+  };
+  instructions?: string; // Peut être utilisé en plus du prompt
 }
 
 /**
@@ -86,7 +105,16 @@ export interface SessionUpdateMessage {
 }
 
 /**
+ * Message input_audio_buffer.append pour envoyer des chunks audio (Base64)
+ */
+export interface InputAudioBufferAppendMessage {
+  type: 'input_audio_buffer.append';
+  audio: string; // Base64-encoded audio bytes
+}
+
+/**
  * Message input_audio_buffer.commit pour signaler la fin de l'audio utilisateur
+ * (Seulement nécessaire si VAD est désactivé)
  */
 export interface InputAudioBufferCommitMessage {
   type: 'input_audio_buffer.commit';

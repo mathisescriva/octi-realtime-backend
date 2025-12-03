@@ -5,6 +5,7 @@ import {
   RealtimeEvent,
   SessionUpdateMessage,
   InputAudioBufferCommitMessage,
+  InputAudioBufferAppendMessage,
   RealtimeSessionConfig,
 } from './types';
 
@@ -14,6 +15,7 @@ import {
 export class OpenAIRealtimeClient {
   private _ws: WebSocket | null = null;
   private isConnected = false;
+  private sessionConfirmed = false; // Flag pour attendre la confirmation de session
   private messageHandlers: ((event: RealtimeEvent) => void)[] = [];
   private readonly apiKey: string;
   private readonly model: string;
@@ -45,27 +47,54 @@ export class OpenAIRealtimeClient {
         this._ws.on('open', () => {
           logger.info('Connexion OpenAI Realtime établie');
           this.isConnected = true;
+          this.sessionConfirmed = false; // Reset sur nouvelle connexion
 
           // Envoyer la configuration de session
+          // Selon la doc, on doit envoyer session.update après la connexion
           const sessionUpdate: SessionUpdateMessage = {
             type: 'session.update',
             session: sessionConfig,
           };
 
+          logger.debug({ sessionConfig }, 'Envoi de session.update');
           this.sendEvent(sessionUpdate);
-          resolve();
+          
+          // Attendre la confirmation de session avant de résoudre
+          const confirmationHandler = (event: RealtimeEvent) => {
+            if (event.type === 'session.created' || event.type === 'session.updated') {
+              logger.info('✅ Session confirmée par OpenAI');
+              this.sessionConfirmed = true;
+              // Retirer le handler après confirmation
+              this.messageHandlers = this.messageHandlers.filter(h => h !== confirmationHandler);
+              resolve();
+            }
+          };
+          this.onMessage(confirmationHandler);
         });
 
         this._ws.on('message', (data: WebSocket.Data) => {
           try {
             if (typeof data === 'string') {
               const event: RealtimeEvent = JSON.parse(data);
-              logger.debug({ type: event.type }, 'Événement JSON reçu depuis OpenAI');
+              logger.info({ type: event.type }, 'Événement JSON reçu depuis OpenAI');
               this.handleMessage(event);
             } else {
-              // Messages binaires (pings WebSocket ou audio)
-              const size = Buffer.isBuffer(data) ? data.length : 'unknown';
-              logger.debug({ size }, 'Message binaire reçu depuis OpenAI');
+              // Messages binaires - peuvent être du JSON encodé en UTF-8
+              const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+              
+              // Essayer de parser comme JSON d'abord
+              try {
+                const text = buffer.toString('utf8');
+                const event: RealtimeEvent = JSON.parse(text);
+                logger.info({ type: event.type }, 'Événement JSON (binaire) reçu depuis OpenAI');
+                this.handleMessage(event);
+              } catch {
+                // Ce n'est pas du JSON, c'est vraiment binaire (audio ou ping)
+                const size = buffer.length;
+                if (size > 100) {
+                  logger.debug({ size }, 'Message binaire reçu depuis OpenAI (non-JSON)');
+                }
+              }
             }
           } catch (error) {
             logger.error({ error }, 'Erreur lors du parsing d\'un message OpenAI');
@@ -83,6 +112,7 @@ export class OpenAIRealtimeClient {
         this._ws.on('close', (code, reason) => {
           logger.info({ code, reason: reason.toString() }, 'Connexion OpenAI Realtime fermée');
           this.isConnected = false;
+          this.sessionConfirmed = false; // Reset sur fermeture
         });
       } catch (error) {
         reject(new RealtimeConnectionError('Impossible de créer la connexion WebSocket', error as Error));
@@ -100,7 +130,7 @@ export class OpenAIRealtimeClient {
   /**
    * Envoie un événement JSON à OpenAI
    */
-  sendEvent(event: SessionUpdateMessage | InputAudioBufferCommitMessage | any): void {
+  sendEvent(event: SessionUpdateMessage | InputAudioBufferCommitMessage | InputAudioBufferAppendMessage | any): void {
     if (!this._ws || !this.isConnected) {
       throw new RealtimeConnectionError('Connexion OpenAI non établie');
     }
@@ -111,15 +141,25 @@ export class OpenAIRealtimeClient {
   }
 
   /**
-   * Envoie un chunk audio binaire (PCM16) à OpenAI
+   * Envoie un chunk audio via input_audio_buffer.append (Base64-encoded)
+   * Selon la doc, pour WebSocket on doit utiliser input_audio_buffer.append avec Base64
    */
-  sendBinary(buffer: Buffer): void {
-    if (!this._ws || !this.isConnected) {
-      throw new RealtimeConnectionError('Connexion OpenAI non établie');
+  sendAudioChunk(audioBase64: string): void {
+    if (!this._ws || !this.isConnected || !this.sessionConfirmed) {
+      logger.warn('Tentative d\'envoi d\'audio, session non prête', {
+        isConnected: this.isConnected,
+        sessionConfirmed: this.sessionConfirmed,
+      });
+      throw new RealtimeConnectionError('Session OpenAI non prête pour l\'envoi d\'audio');
     }
 
-    this._ws.send(buffer);
-    logger.debug({ size: buffer.length }, 'Chunk audio envoyé à OpenAI');
+    const appendEvent: InputAudioBufferAppendMessage = {
+      type: 'input_audio_buffer.append',
+      audio: audioBase64,
+    };
+
+    this.sendEvent(appendEvent);
+    logger.debug({ audioLength: audioBase64.length }, 'Chunk audio (Base64) envoyé à OpenAI via input_audio_buffer.append');
   }
 
   /**
@@ -135,10 +175,10 @@ export class OpenAIRealtimeClient {
   }
 
   /**
-   * Vérifie si la connexion est active
+   * Vérifie si la connexion est active et la session confirmée
    */
   get connected(): boolean {
-    return this.isConnected && this._ws?.readyState === WebSocket.OPEN;
+    return this.isConnected && this.sessionConfirmed && this._ws?.readyState === WebSocket.OPEN;
   }
 
   /**
