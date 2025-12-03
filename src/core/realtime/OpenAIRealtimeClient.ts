@@ -65,7 +65,9 @@ export class OpenAIRealtimeClient {
               const event: RealtimeEvent = JSON.parse(data);
               this.handleMessage(event);
             } else {
-              logger.warn('Message binaire reçu depuis OpenAI (non géré)');
+              // Messages binaires depuis OpenAI sont rares (peut être des pings WebSocket)
+              // L'audio est généralement envoyé dans les événements JSON avec delta en base64
+              logger.debug({ size: Buffer.isBuffer(data) ? data.length : 'unknown' }, 'Message binaire reçu depuis OpenAI (probable ping)');
             }
           } catch (error) {
             logger.error({ error }, 'Erreur lors du parsing d\'un message OpenAI');
