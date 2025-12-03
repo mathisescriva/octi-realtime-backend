@@ -14,6 +14,7 @@ import {
   ResponseOutputAudioDeltaEvent,
   ResponseOutputAudioTranscriptDeltaEvent,
   ErrorEvent,
+  ResponseDoneEvent,
 } from '../../core/realtime/types';
 import { searchDocuments } from '../../core/tools/ragSearchTool';
 
@@ -100,7 +101,42 @@ export function realtimeHandler(ws: WebSocket): void {
         }
 
         case 'response.done': {
-          logger.info('✅ Réponse complète terminée');
+          const doneEvent = event as ResponseDoneEvent;
+          
+          // Vérifier si la réponse a échoué
+          if (doneEvent.response?.status === 'failed' && doneEvent.response?.status_details?.error) {
+            const error = doneEvent.response.status_details.error;
+            const errorCode = error.code || '';
+            const errorMessage = error.message || error.type || 'Erreur inconnue';
+            
+            logger.error({ 
+              errorCode, 
+              errorMessage, 
+              fullEvent: JSON.stringify(doneEvent) 
+            }, '❌ Réponse OpenAI échouée');
+            
+            // Gérer spécifiquement les rate limits
+            if (errorCode === 'rate_limit_exceeded' || errorCode.includes('rate_limit')) {
+              const waitTime = extractWaitTime(errorMessage) || 5; // Par défaut 5 secondes
+              logger.warn({ waitTime }, '⏳ Rate limit atteint, attente avant retry');
+              
+              sendError(
+                `Limite de débit atteinte. Veuillez réessayer dans ${Math.ceil(waitTime)} secondes. ` +
+                `(Erreur: ${errorMessage})`
+              );
+              
+              // Optionnel : réinitialiser la session après le délai
+              setTimeout(async () => {
+                logger.info('🔄 Réinitialisation de la session après rate limit');
+                await resetSession();
+              }, waitTime * 1000);
+            } else {
+              // Autre type d'erreur
+              sendError(`Erreur OpenAI: ${errorMessage}`);
+            }
+          } else {
+            logger.info('✅ Réponse complète terminée avec succès');
+          }
           break;
         }
 
@@ -152,8 +188,33 @@ export function realtimeHandler(ws: WebSocket): void {
 
         case 'error': {
           const errorEvent = event as ErrorEvent;
-          logger.error({ error: errorEvent.error, fullEvent: JSON.stringify(event) }, '❌ Erreur depuis OpenAI Realtime');
-          sendError(`Erreur OpenAI: ${errorEvent.error.message}`);
+          const errorCode = errorEvent.error.code || '';
+          const errorMessage = errorEvent.error.message || 'Erreur inconnue';
+          
+          logger.error({ 
+            error: errorEvent.error, 
+            errorCode,
+            fullEvent: JSON.stringify(event) 
+          }, '❌ Erreur depuis OpenAI Realtime');
+          
+          // Gérer spécifiquement les rate limits
+          if (errorCode === 'rate_limit_exceeded' || errorCode.includes('rate_limit') || errorMessage.includes('rate limit')) {
+            const waitTime = extractWaitTime(errorMessage) || 5;
+            logger.warn({ waitTime }, '⏳ Rate limit atteint, attente avant retry');
+            
+            sendError(
+              `Limite de débit atteinte. Veuillez réessayer dans ${Math.ceil(waitTime)} secondes. ` +
+              `(Erreur: ${errorMessage})`
+            );
+            
+            // Optionnel : réinitialiser la session après le délai
+            setTimeout(async () => {
+              logger.info('🔄 Réinitialisation de la session après rate limit');
+              await resetSession();
+            }, waitTime * 1000);
+          } else {
+            sendError(`Erreur OpenAI: ${errorMessage}`);
+          }
           break;
         }
 
@@ -176,6 +237,28 @@ export function realtimeHandler(ws: WebSocket): void {
     } catch (error) {
       logger.error({ error }, 'Impossible d\'envoyer le message d\'erreur');
     }
+  }
+
+  /**
+   * Extrait le temps d'attente depuis un message d'erreur de rate limit
+   */
+  function extractWaitTime(errorMessage: string): number | null {
+    // Chercher des patterns comme "try again in 4.96s" ou "wait 5 seconds"
+    const patterns = [
+      /try again in ([\d.]+)s/i,
+      /wait ([\d.]+) seconds/i,
+      /retry after ([\d.]+)s/i,
+      /in ([\d.]+) seconds/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = errorMessage.match(pattern);
+      if (match && match[1]) {
+        return parseFloat(match[1]);
+      }
+    }
+    
+    return null;
   }
 
   /**

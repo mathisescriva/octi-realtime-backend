@@ -64,6 +64,22 @@ export interface ErrorEvent extends RealtimeEvent {
   };
 }
 
+export interface ResponseDoneEvent extends RealtimeEvent {
+  type: 'response.done';
+  response: {
+    id: string;
+    status: 'completed' | 'failed';
+    status_details?: {
+      type: string;
+      error?: {
+        type: string;
+        code?: string;
+        message?: string;
+      };
+    };
+  };
+}
+
 /**
  * Configuration de session pour OpenAI Realtime (GA)
  * Structure exacte selon la documentation officielle

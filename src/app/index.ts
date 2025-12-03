@@ -2,6 +2,7 @@ import express, { Express } from 'express';
 import healthRoute from './httpRoutes/healthRoute';
 import clientSecretRoute from './httpRoutes/clientSecretRoute';
 import sessionRoute from './httpRoutes/sessionRoute';
+import ragRoute from './httpRoutes/ragRoute';
 import { logger } from '../config/logger';
 
 /**
@@ -26,9 +27,10 @@ export function createApp(): Express {
   });
 
   // Routes HTTP
-  app.use('/', healthRoute);
-  app.use('/api', clientSecretRoute);
-  app.use('/api', sessionRoute);
+      app.use('/', healthRoute);
+      app.use('/api', clientSecretRoute);
+      app.use('/api', sessionRoute);
+      app.use('/api/rag', ragRoute);
 
   // Log des requêtes
   app.use((req, _res, next) => {

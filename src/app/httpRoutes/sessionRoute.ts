@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getEnvConfig } from '../../config/env';
 import { logger } from '../../config/logger';
+import { ragSearchTool } from '../../core/tools/ragSearchTool';
 
 const router = Router();
 
@@ -23,16 +24,28 @@ router.get('/session', async (_req: Request, res: Response) => {
 
     logger.info('Création d\'une session éphémère OpenAI Realtime');
 
-    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.openaiRealtimeModel || 'gpt-realtime',
-      }),
-    });
+        // Préparer le body avec les tools RAG si Pinecone est configuré
+        const sessionBody: {
+          model: string;
+          tools?: typeof ragSearchTool[];
+        } = {
+          model: config.openaiRealtimeModel || 'gpt-realtime',
+        };
+
+        // Ajouter le tool RAG si Pinecone est configuré
+        if (config.pineconeApiKey) {
+          sessionBody.tools = [ragSearchTool];
+          logger.info('Tool RAG ajouté à la session éphémère');
+        }
+
+        const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${config.openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(sessionBody),
+        });
 
     if (!response.ok) {
       const errorText = await response.text();
