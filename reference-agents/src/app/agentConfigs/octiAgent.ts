@@ -134,15 +134,16 @@ Instructions importantes pour la conversation vocale :
         required: ['query'],
         additionalProperties: false,
       },
-      execute: async (input: { query: string }) => {
+      execute: async (input: any) => {
         try {
           const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+          const query = typeof input === 'object' && input !== null && 'query' in input ? input.query : '';
           const response = await fetch(`${backendUrl}/api/rag/search`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ query: input.query }),
+            body: JSON.stringify({ query }),
           });
 
           if (!response.ok) {
