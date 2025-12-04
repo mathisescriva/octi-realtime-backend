@@ -419,6 +419,12 @@ function App() {
     if (sessionStatus === 'CONNECTED') {
       try {
         mute(!isAudioPlaybackEnabled);
+        // Essayer de démarrer l'audio après la connexion (après interaction utilisateur)
+        if (isAudioPlaybackEnabled && audioElementRef.current) {
+          audioElementRef.current.play().catch((err) => {
+            console.warn("Autoplay may be blocked by browser:", err);
+          });
+        }
       } catch (err) {
         console.warn('mute sync after connect failed', err);
       }
@@ -454,6 +460,8 @@ function App() {
               width={80}
               height={80}
               className="mr-2"
+              priority
+              style={{ width: 'auto', height: 'auto' }}
             />
           </div>
           <div>

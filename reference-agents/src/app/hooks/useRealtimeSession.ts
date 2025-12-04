@@ -134,11 +134,11 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
             return pc;
           },
         }),
-        model: 'gpt-4o-realtime',
+        model: 'gpt-4o-realtime-preview-2025-06-03',
         config: {
           inputAudioTranscription: {
-            model: 'gpt-4o-mini-transcribe', // Modèle standard pour transcription
-            // Pas de language spécifié = détection automatique (fonctionne pour FR et EN)
+            model: 'gpt-4o-mini-transcribe',
+            language: 'fr', // Français pour une meilleure transcription
           },
         },
         outputGuardrails: outputGuardrails ?? [],
