@@ -31,8 +31,8 @@ services:
     env: node
     plan: starter
     rootDir: reference-agents
-    buildCommand: cd reference-agents && npm install && npm run build
-    startCommand: cd reference-agents && npm start
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
