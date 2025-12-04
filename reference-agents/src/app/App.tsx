@@ -419,11 +419,19 @@ function App() {
     if (sessionStatus === 'CONNECTED') {
       try {
         mute(!isAudioPlaybackEnabled);
-        // Essayer de démarrer l'audio après la connexion (après interaction utilisateur)
+        // Attendre que le stream soit disponible avant de jouer l'audio
         if (isAudioPlaybackEnabled && audioElementRef.current) {
-          audioElementRef.current.play().catch((err) => {
-            console.warn("Autoplay may be blocked by browser:", err);
-          });
+          const tryPlay = () => {
+            if (audioElementRef.current?.srcObject) {
+              audioElementRef.current.play().catch((err) => {
+                console.warn("Autoplay may be blocked by browser:", err);
+              });
+            } else {
+              // Réessayer après un court délai si le stream n'est pas encore disponible
+              setTimeout(tryPlay, 100);
+            }
+          };
+          tryPlay();
         }
       } catch (err) {
         console.warn('mute sync after connect failed', err);
@@ -436,13 +444,20 @@ function App() {
       // The remote audio stream from the audio element.
       const remoteStream = audioElementRef.current.srcObject as MediaStream;
       startRecording(remoteStream);
+      
+      // Essayer de démarrer l'audio une fois que le stream est disponible
+      if (isAudioPlaybackEnabled && audioElementRef.current) {
+        audioElementRef.current.play().catch((err) => {
+          console.warn("Autoplay may be blocked by browser:", err);
+        });
+      }
     }
 
     // Clean up on unmount or when sessionStatus is updated.
     return () => {
       stopRecording();
     };
-  }, [sessionStatus]);
+  }, [sessionStatus, isAudioPlaybackEnabled]);
 
   const agentSetKey = searchParams.get("agentConfig") || "default";
 
