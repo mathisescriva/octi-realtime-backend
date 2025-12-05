@@ -125,6 +125,8 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       const ek = await getEphemeralKey();
       const rootAgent = initialAgents[0];
 
+      // Ne pas spécifier le modèle ici - il sera pris de la session éphémère créée par le backend
+      // Le backend crée la session avec le bon modèle (gpt-realtime)
       sessionRef.current = new RealtimeSession(rootAgent, {
         transport: new OpenAIRealtimeWebRTC({
           audioElement,
@@ -134,7 +136,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
             return pc;
           },
         }),
-        model: process.env.NEXT_PUBLIC_OPENAI_MODEL || 'gpt-realtime',
+        // model: omis volontairement - utilise le modèle de la session éphémère du backend
         config: {
           inputAudioTranscription: {
             model: 'gpt-4o-mini-transcribe',
