@@ -8,6 +8,7 @@
  * - documents/guides/*.pdf
  * - documents/stages/*.xlsx
  * - documents/linkedin/*.pdf
+ * - documents/interviews-etudiants/*.pdf (transcriptions d'interviews d'étudiants inspirants)
  */
 
 import { Pinecone } from '@pinecone-database/pinecone';
@@ -186,7 +187,7 @@ async function createEmbeddings(texts: string[]): Promise<number[][]> {
  */
 async function ingestFile(
   filePath: string,
-  source: 'brochure' | 'guide' | 'stage' | 'linkedin',
+  source: 'brochure' | 'guide' | 'stage' | 'linkedin' | 'interview',
   index: any
 ): Promise<number> {
   const filename = path.basename(filePath);
@@ -196,7 +197,21 @@ async function ingestFile(
 
   if (filePath.endsWith('.pdf')) {
     const text = await parsePDF(filePath);
-    texts = chunkText(text);
+    // Pour les interviews, préserver mieux la structure (questions/réponses)
+    if (source === 'interview') {
+      // Chunker par paragraphes plus grands pour préserver le contexte des interviews
+      texts = chunkText(text, 800); // Chunks plus grands pour les interviews
+    } else {
+      texts = chunkText(text);
+    }
+  } else if (filePath.endsWith('.txt')) {
+    // Support des fichiers texte pour les transcriptions
+    const text = fs.readFileSync(filePath, 'utf-8');
+    if (source === 'interview') {
+      texts = chunkText(text, 800); // Chunks plus grands pour les interviews
+    } else {
+      texts = chunkText(text);
+    }
   } else if (filePath.endsWith('.xlsx') || filePath.endsWith('.xls')) {
     const excelTexts = await parseExcel(filePath);
     // Pour Excel, chunker intelligemment en préservant les lignes complètes d'étudiants
@@ -272,7 +287,8 @@ async function main() {
     console.log('     ├── brochures/');
     console.log('     ├── guides/');
     console.log('     ├── stages/');
-    console.log('     └── linkedin/');
+    console.log('     ├── linkedin/');
+    console.log('     └── interviews-etudiants/');
     process.exit(1);
   }
 
@@ -323,6 +339,17 @@ async function main() {
     for (const file of files) {
       const filePath = path.join(linkedinDir, file);
       totalVectors += await ingestFile(filePath, 'linkedin', index);
+    }
+  }
+
+  // Ingérer les transcriptions d'interviews d'étudiants
+  const interviewsDir = path.join(documentsDir, 'interviews-etudiants');
+  if (fs.existsSync(interviewsDir)) {
+    const files = fs.readdirSync(interviewsDir).filter(f => f.endsWith('.pdf') || f.endsWith('.txt'));
+    console.log(`\n🎤 Interviews d'étudiants inspirants (${files.length} fichiers)`);
+    for (const file of files) {
+      const filePath = path.join(interviewsDir, file);
+      totalVectors += await ingestFile(filePath, 'interview', index);
     }
   }
 
