@@ -101,7 +101,7 @@ export async function searchDocuments(query: string): Promise<string> {
     }
     
     // Détecter si la requête concerne des étudiants inspirants/interviews
-    const isStudentInspirationQuery = /étudiant.*inspir|inspir.*étudiant|parcours.*inspir|témoignage|interview.*étudiant|étudiant.*parcours/i.test(query);
+    const isStudentInspirationQuery = /étudiant.*inspir|inspir.*étudiant|parcours.*inspir|témoignage|interview.*étudiant|étudiant.*parcours|donne.*étudiant.*inspir|exemple.*étudiant|étudiant.*inspirant/i.test(query);
     
     // Recherche sémantique (toujours effectuée, mais utilisée seulement si pas de correspondances textuelles)
     // Augmenter topK pour améliorer les chances de trouver des résultats pertinents
@@ -149,10 +149,42 @@ export async function searchDocuments(query: string): Promise<string> {
       }
       
       // Équilibrer entre pertinence et limitation des tokens
+      // Pour les requêtes sur étudiants inspirants, prendre plus de résultats et prioriser les interviews
+      const maxResults = hasProperName ? 8 : (isStudentInspirationQuery ? 10 : 5);
       contexts = filteredMatches
-        .slice(0, hasProperName ? 8 : (isStudentInspirationQuery ? 8 : 5)) // Plus de résultats pour étudiants inspirants
+        .slice(0, maxResults)
         .map((match: any) => match.metadata?.text as string)
         .filter(Boolean);
+      
+      // Si on cherche des étudiants inspirants et qu'on n'a pas trouvé d'interviews, essayer une recherche plus large
+      if (isStudentInspirationQuery && contexts.length > 0 && !contexts.some(ctx => ctx.toLowerCase().includes('interview') || ctx.toLowerCase().includes('parcours inspirant') || ctx.toLowerCase().includes('bruno') || ctx.toLowerCase().includes('linh'))) {
+        logger.debug('Aucune interview trouvée, recherche élargie...');
+        // Faire une recherche supplémentaire avec des mots-clés spécifiques
+        const interviewKeywords = ['interview', 'parcours', 'inspirant', 'bruno', 'linh', 'témoignage'];
+        const interviewQuery = interviewKeywords.join(' ');
+        const interviewEmbedding = await openaiClient.embeddings.create({
+          model: 'text-embedding-3-small',
+          input: interviewQuery,
+        });
+        const interviewSearchResults = await index.query({
+          vector: interviewEmbedding.data[0].embedding,
+          topK: 20,
+          includeMetadata: true,
+          filter: { source: { $eq: 'interview' } }, // Filtrer uniquement les interviews
+        });
+        
+        const interviewContexts = interviewSearchResults.matches
+          .filter((match: any) => match.score && match.score >= 0.15)
+          .slice(0, 5)
+          .map((match: any) => match.metadata?.text as string)
+          .filter(Boolean);
+        
+        if (interviewContexts.length > 0) {
+          // Prioriser les interviews trouvées
+          contexts = [...interviewContexts, ...contexts].slice(0, maxResults);
+          logger.debug({ interviewCount: interviewContexts.length }, 'Interviews trouvées via recherche spécifique');
+        }
+      }
     }
 
     // Limiter la taille totale du contexte pour éviter les rate limits
