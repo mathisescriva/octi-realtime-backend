@@ -124,11 +124,30 @@ export function realtimeHandler(ws: WebSocket): void {
             if (errorCode === 'rate_limit_exceeded' || errorCode.includes('rate_limit') || errorMessage.toLowerCase().includes('rate limit')) {
               const waitTime = extractWaitTime(errorMessage) || 5; // Par défaut 5 secondes
               const waitTimeSeconds = Math.ceil(waitTime);
-              logger.warn({ waitTime, errorCode, errorMessage }, '⏳ Rate limit atteint, attente avant retry');
               
-              sendError(
-                `⏳ Limite de débit atteinte. Réessai automatique dans ${waitTimeSeconds} secondes...`
-              );
+              // Extraire les détails du rate limit depuis le message
+              const limitMatch = errorMessage.match(/Limit (\d+)/);
+              const usedMatch = errorMessage.match(/Used (\d+)/);
+              const requestedMatch = errorMessage.match(/Requested (\d+)/);
+              
+              logger.warn({ 
+                waitTime, 
+                errorCode, 
+                errorMessage,
+                limit: limitMatch ? limitMatch[1] : null,
+                used: usedMatch ? usedMatch[1] : null,
+                requested: requestedMatch ? requestedMatch[1] : null
+              }, '⏳ Rate limit atteint, attente avant retry');
+              
+              let errorMsg = `⏳ Limite de débit atteinte (${limitMatch ? limitMatch[1] : '?'} TPM). Réessai automatique dans ${waitTimeSeconds} secondes...`;
+              if (limitMatch && usedMatch) {
+                const limit = parseInt(limitMatch[1]);
+                const used = parseInt(usedMatch[1]);
+                const percentage = Math.round((used / limit) * 100);
+                errorMsg += ` (${percentage}% utilisé)`;
+              }
+              
+              sendError(errorMsg);
               
               // Réinitialiser la session après le délai + un petit buffer
               setTimeout(async () => {
@@ -216,11 +235,30 @@ export function realtimeHandler(ws: WebSocket): void {
           if (errorCode === 'rate_limit_exceeded' || errorCode.includes('rate_limit') || errorMessage.toLowerCase().includes('rate limit')) {
             const waitTime = extractWaitTime(errorMessage) || 5;
             const waitTimeSeconds = Math.ceil(waitTime);
-            logger.warn({ waitTime, errorCode, errorMessage }, '⏳ Rate limit atteint, attente avant retry');
             
-            sendError(
-              `⏳ Limite de débit atteinte. Réessai automatique dans ${waitTimeSeconds} secondes...`
-            );
+            // Extraire les détails du rate limit depuis le message
+            const limitMatch = errorMessage.match(/Limit (\d+)/);
+            const usedMatch = errorMessage.match(/Used (\d+)/);
+            const requestedMatch = errorMessage.match(/Requested (\d+)/);
+            
+            logger.warn({ 
+              waitTime, 
+              errorCode, 
+              errorMessage,
+              limit: limitMatch ? limitMatch[1] : null,
+              used: usedMatch ? usedMatch[1] : null,
+              requested: requestedMatch ? requestedMatch[1] : null
+            }, '⏳ Rate limit atteint, attente avant retry');
+            
+            let errorMsg = `⏳ Limite de débit atteinte (${limitMatch ? limitMatch[1] : '?'} TPM). Réessai automatique dans ${waitTimeSeconds} secondes...`;
+            if (limitMatch && usedMatch) {
+              const limit = parseInt(limitMatch[1]);
+              const used = parseInt(usedMatch[1]);
+              const percentage = Math.round((used / limit) * 100);
+              errorMsg += ` (${percentage}% utilisé)`;
+            }
+            
+            sendError(errorMsg);
             
             // Réinitialiser la session après le délai + un petit buffer
             setTimeout(async () => {
@@ -272,7 +310,7 @@ export function realtimeHandler(ws: WebSocket): void {
    * Extrait le temps d'attente depuis un message d'erreur de rate limit
    */
   function extractWaitTime(errorMessage: string): number | null {
-    // Chercher des patterns comme "try again in 4.96s" ou "wait 5 seconds" ou "Please try again in 7.288s"
+    // Chercher des patterns comme "try again in 4.96s" ou "wait 5 seconds" ou "Please try again in 7.288s" ou "6.141s"
     const patterns = [
       /try again in ([\d.]+)s/i,
       /wait ([\d.]+) seconds/i,
@@ -280,6 +318,7 @@ export function realtimeHandler(ws: WebSocket): void {
       /in ([\d.]+) seconds/i,
       /Please try again in ([\d.]+)s/i,
       /try again in ([\d.]+) seconds/i,
+      /Please try again in ([\d.]+)s/i, // Format exact de l'erreur OpenAI
     ];
     
     for (const pattern of patterns) {
@@ -287,7 +326,8 @@ export function realtimeHandler(ws: WebSocket): void {
       if (match && match[1]) {
         const time = parseFloat(match[1]);
         // S'assurer que le temps est raisonnable (max 60 secondes)
-        return Math.min(time, 60);
+        // Arrondir à l'entier supérieur pour être sûr
+        return Math.min(Math.ceil(time), 60);
       }
     }
     
