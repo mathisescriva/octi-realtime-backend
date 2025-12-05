@@ -117,7 +117,7 @@ async function parseExcel(filePath: string): Promise<string[]> {
  * Découpe un texte en chunks intelligents
  * Essaie de préserver les paragraphes et sections
  */
-function chunkText(text: string, chunkSize: number = 500): string[] {
+function chunkText(text: string, chunkSize: number = 800): string[] {
   // Essayer de chunker par paragraphes d'abord
   const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
   const chunks: string[] = [];

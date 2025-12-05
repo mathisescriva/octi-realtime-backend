@@ -80,7 +80,7 @@ export async function searchDocuments(query: string): Promise<string> {
       // Recherche textuelle sur un large échantillon
       const textSearchResults = await index.query({
         vector: Array(1536).fill(0), // Vector nul pour recherche textuelle brute
-        topK: 500, // Large échantillon pour recherche textuelle
+        topK: 1000, // Échantillon encore plus large pour recherche textuelle précise
         includeMetadata: true,
       });
       
@@ -91,7 +91,7 @@ export async function searchDocuments(query: string): Promise<string> {
           // Vérifier que TOUS les mots de la requête sont présents
           return queryWords.every(word => textUpper.includes(word));
         })
-        .slice(0, 8) // Augmenter à 8 résultats pour améliorer la pertinence
+        .slice(0, 15) // Plus de résultats textuels pour une meilleure précision
         .map((match: any) => match.metadata?.text as string)
         .filter(Boolean);
       
@@ -104,10 +104,10 @@ export async function searchDocuments(query: string): Promise<string> {
     const isStudentInspirationQuery = /étudiant.*inspir|inspir.*étudiant|parcours.*inspir|témoignage|interview.*étudiant|étudiant.*parcours|donne.*étudiant.*inspir|exemple.*étudiant|étudiant.*inspirant/i.test(query);
     
     // Recherche sémantique (toujours effectuée, mais utilisée seulement si pas de correspondances textuelles)
+    // Avec 200k TPM, on peut chercher plus largement pour une meilleure précision
     // Augmenter topK pour améliorer les chances de trouver des résultats pertinents
-    // Pour les requêtes sur étudiants inspirants, chercher plus largement
-    const topK = hasProperName ? 30 : (isStudentInspirationQuery ? 25 : 15);
-    const minScore = hasProperName ? 0.2 : (isStudentInspirationQuery ? 0.18 : 0.25); // Seuil plus bas pour interviews
+    const topK = hasProperName ? 50 : (isStudentInspirationQuery ? 40 : 30); // Plus large recherche
+    const minScore = hasProperName ? 0.15 : (isStudentInspirationQuery ? 0.12 : 0.20); // Seuil plus bas pour plus de résultats
     
     const searchResults = await index.query({
       vector: queryEmbedding,
@@ -148,9 +148,9 @@ export async function searchDocuments(query: string): Promise<string> {
         filteredMatches = [...interviewMatches, ...otherMatches];
       }
       
-      // Équilibrer entre pertinence et limitation des tokens
+      // Avec 200k TPM, on peut prendre plus de résultats pour une meilleure précision
       // Pour les requêtes sur étudiants inspirants, prendre plus de résultats et prioriser les interviews
-      const maxResults = hasProperName ? 8 : (isStudentInspirationQuery ? 10 : 5);
+      const maxResults = hasProperName ? 15 : (isStudentInspirationQuery ? 12 : 10); // Plus de résultats
       contexts = filteredMatches
         .slice(0, maxResults)
         .map((match: any) => match.metadata?.text as string)
@@ -168,14 +168,14 @@ export async function searchDocuments(query: string): Promise<string> {
         });
         const interviewSearchResults = await index.query({
           vector: interviewEmbedding.data[0].embedding,
-          topK: 20,
+          topK: 50, // Recherche plus large pour interviews
           includeMetadata: true,
           filter: { source: { $eq: 'interview' } }, // Filtrer uniquement les interviews
         });
         
         const interviewContexts = interviewSearchResults.matches
-          .filter((match: any) => match.score && match.score >= 0.15)
-          .slice(0, 5)
+          .filter((match: any) => match.score && match.score >= 0.12) // Seuil plus bas
+          .slice(0, 8) // Plus d'interviews
           .map((match: any) => match.metadata?.text as string)
           .filter(Boolean);
         
@@ -187,9 +187,9 @@ export async function searchDocuments(query: string): Promise<string> {
       }
     }
 
-    // Limiter la taille totale du contexte pour éviter les rate limits
-    // Maximum 2500 caractères pour garder de la pertinence tout en limitant les tokens
-    const MAX_CONTEXT_LENGTH = 2500;
+    // Avec 200k TPM, on peut être plus généreux avec le contexte
+    // Maximum 5000 caractères pour une meilleure précision et plus de détails
+    const MAX_CONTEXT_LENGTH = 5000;
     let context = contexts.join('\n\n');
     
     // Tronquer intelligemment si nécessaire
@@ -199,8 +199,8 @@ export async function searchDocuments(query: string): Promise<string> {
       const lastNewline = context.lastIndexOf('\n', MAX_CONTEXT_LENGTH);
       const cutPoint = Math.max(lastPeriod, lastNewline);
       
-      if (cutPoint > MAX_CONTEXT_LENGTH * 0.6) {
-        // Si on trouve une coupure naturelle dans les 60% finaux, l'utiliser
+      if (cutPoint > MAX_CONTEXT_LENGTH * 0.7) {
+        // Si on trouve une coupure naturelle dans les 70% finaux, l'utiliser
         context = context.substring(0, cutPoint + 1);
       } else {
         // Sinon, tronquer simplement
