@@ -46,3 +46,5 @@ npm run ingest
 
 Les interviews seront automatiquement indexées dans Pinecone et disponibles via le RAG.
 
+
+

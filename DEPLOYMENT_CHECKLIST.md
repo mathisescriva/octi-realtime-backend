@@ -76,3 +76,5 @@ curl http://localhost:10000/health
 - **Erreurs de build** : Vérifier que Node.js ≥ 20.0.0 est utilisé
 - **WebSocket ne fonctionne pas** : Vérifier que le frontend utilise `wss://` en production
 
+
+

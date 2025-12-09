@@ -40,3 +40,5 @@ Avec cette nouvelle limite :
 - Pour Render/production, configure la clé via le dashboard Render
 - Ne partage jamais la clé publiquement
 
+
+

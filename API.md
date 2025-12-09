@@ -2,6 +2,39 @@
 
 Documentation des endpoints pour connecter votre frontend.
 
+## ⚠️ Important : Deux approches possibles
+
+Il existe **deux façons** de connecter un frontend à OKTI :
+
+### 1. **Approche SDK OpenAI (recommandée - utilisée par le frontend actuel)**
+
+Utilise `/api/session` pour obtenir une clé éphémère, puis se connecte **directement** à OpenAI via WebRTC en utilisant le SDK `@openai/agents/realtime`.
+
+**Avantages :**
+- ✅ Toutes les fonctionnalités disponibles (texte, interruption, PTT, etc.)
+- ✅ Connexion directe à OpenAI (meilleure latence)
+- ✅ Gestion complète des événements par le SDK
+
+**Voir :** `GUIDE_FRONTEND.md` pour l'implémentation complète.
+
+### 2. **Approche WebSocket Backend**
+
+Utilise `/ws/realtime` pour passer par le backend qui fait le proxy vers OpenAI.
+
+**Avantages :**
+- ✅ Plus simple à implémenter (pas besoin du SDK)
+- ✅ Le backend gère la connexion OpenAI
+
+**Limitations actuelles :**
+- ❌ Pas d'envoi de texte (audio uniquement)
+- ❌ Pas d'interruption de l'agent
+- ❌ Pas de gestion Push-to-Talk (clear/commit buffer)
+- ❌ Pas de transcription de l'utilisateur en temps réel
+
+**Cette documentation couvre l'approche WebSocket Backend.**
+
+---
+
 ## Base URL
 
 ```
@@ -39,18 +72,20 @@ console.log(data.status); // "ok"
 
 Crée une session éphémère OpenAI Realtime. Retourne un `client_secret` pour connexion directe à OpenAI via WebRTC.
 
+**⚠️ Utilisé par l'approche SDK OpenAI (voir `GUIDE_FRONTEND.md`)**
+
 **Réponse :**
 ```json
 {
   "object": "realtime.session",
   "id": "sess_xxx",
-  "model": "gpt-realtime",
+  "model": "gpt-realtime-2025-08-28",
   "client_secret": {
     "value": "ek_xxx",
     "expires_at": 1234567890
   },
   "instructions": "...",
-  "voice": "alloy",
+  "voice": "verse",
   ...
 }
 ```
@@ -60,8 +95,33 @@ Crée une session éphémère OpenAI Realtime. Retourne un `client_secret` pour 
 const response = await fetch('http://localhost:8080/api/session');
 const session = await response.json();
 const ephemeralKey = session.client_secret.value;
-// Utiliser ephemeralKey pour se connecter à OpenAI via WebRTC
+// Utiliser ephemeralKey avec le SDK OpenAI Agents pour se connecter directement
 ```
+
+**Note :** Pour utiliser cette approche, voir `GUIDE_FRONTEND.md` qui documente l'utilisation complète du SDK.
+
+---
+
+### POST /api/rag/search
+
+Recherche dans les documents ESCE via RAG (utilisé par l'agent OKTI).
+
+**Body :**
+```json
+{
+  "query": "votre question"
+}
+```
+
+**Réponse :**
+```json
+{
+  "context": "contexte trouvé dans les documents...",
+  "length": 1234
+}
+```
+
+**Note :** Cet endpoint est principalement utilisé par l'agent OKTI via ses outils. Vous pouvez l'utiliser directement pour tester le RAG.
 
 ---
 
@@ -69,13 +129,27 @@ const ephemeralKey = session.client_secret.value;
 
 ### WS /ws/realtime
 
-Endpoint WebSocket pour conversation directe avec OKTI.
+Endpoint WebSocket pour conversation directe avec OKTI via le backend.
+
+**⚠️ Limitations :** Cette approche ne supporte actuellement que l'audio. Pour toutes les fonctionnalités (texte, interruption, PTT), utilisez l'approche SDK avec `/api/session`.
 
 **URL :**
 ```
 ws://localhost:8080/ws/realtime  (développement)
 wss://your-backend.com/ws/realtime  (production)
 ```
+
+**Fonctionnalités supportées :**
+- ✅ Envoi d'audio (PCM16, 24kHz, mono)
+- ✅ Réception d'audio
+- ✅ Transcription de l'agent en temps réel
+- ✅ Reset de session
+
+**Fonctionnalités non supportées (à venir) :**
+- ❌ Envoi de texte
+- ❌ Interruption de l'agent
+- ❌ Push-to-Talk (clear/commit buffer)
+- ❌ Transcription de l'utilisateur en temps réel
 
 ---
 
@@ -322,4 +396,31 @@ async function playAudio(audioBuffer) {
 - HTTP : `https://your-backend.com`
 
 **Important :** Utilisez `wss://` (WebSocket Secure) en production avec HTTPS.
+
+---
+
+## 📊 Comparaison des approches
+
+| Fonctionnalité | SDK OpenAI (`/api/session`) | WebSocket Backend (`/ws/realtime`) |
+|----------------|----------------------------|-----------------------------------|
+| Audio (parler) | ✅ | ✅ |
+| Audio (écouter) | ✅ | ✅ |
+| Envoi de texte | ✅ | ❌ |
+| Interruption | ✅ | ❌ |
+| Push-to-Talk | ✅ | ❌ |
+| Transcription utilisateur | ✅ | ❌ |
+| Transcription agent | ✅ | ✅ |
+| RAG (outils) | ✅ | ✅ |
+| Latence | Faible (direct) | Moyenne (via backend) |
+| Complexité | Moyenne (SDK requis) | Faible (WebSocket simple) |
+
+**Recommandation :** Utilisez l'approche SDK (`/api/session`) pour un frontend complet avec toutes les fonctionnalités. Utilisez l'approche WebSocket Backend (`/ws/realtime`) uniquement si vous avez besoin d'une solution simple sans le SDK.
+
+---
+
+## 🔗 Ressources
+
+- **Guide Frontend complet** : `GUIDE_FRONTEND.md` (approche SDK)
+- **Documentation OpenAI Realtime** : https://platform.openai.com/docs/guides/realtime
+- **SDK OpenAI Agents** : https://github.com/openai/agents
 

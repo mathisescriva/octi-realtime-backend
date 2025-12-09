@@ -84,3 +84,5 @@ Une fois l'augmentation approuvée :
 - Les limites sont **par minute** (TPM) - elles se réinitialisent chaque minute
 - Si tu utilises plusieurs modèles, tu dois demander une augmentation pour chacun
 
+
+
